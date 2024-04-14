@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Description Tool</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <main aria-labelledby="main-heading">
+        <header>
+            <h1 id="main-heading">Image Description Tool</h1>
+        </header>
+
+        <section class="upload-section" aria-labelledby="upload-section-heading">
+            <h2 id="upload-section-heading">Upload Image</h2>
+            <form id="image-form" action="/" method="post" enctype="multipart/form-data">
+                <fieldset>
+                    <legend>Image Upload</legend>
+                    <label for="image-input">Select image:</label>
+                    <input type="file" id="image-input" name="image" accept="image/*" required onchange="previewImage(event)">
+                </fieldset>
+
+                <fieldset>
+                    <legend>Settings</legend>
+                    <label for="iteration-count">Iterations:</label>
+                    <select id="iteration-count" name="iterations" aria-label="Select number of iterations">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <!-- Add more options as needed -->
+                        <option value="10">10</option>
+                    </select>
+                </fieldset>
+
+                <button type="submit" id="submit-button" aria-label="Submit image for processing">Submit</button>
+            </form>
+            <p id="status-message" role="alert" aria-live="assertive"></p>
+            <img id="uploaded-image" src="" alt="Preview of uploaded image" class="responsive-image" style="display: none;">
+        </section>
+
+        <section id="progress-section" aria-labelledby="progress-section-heading">
+            <h2 id="progress-section-heading">Processing Progress</h2>
+            <progress id="overall-progress" max="100" value="0">Waiting to start...</progress>
+        </section>
+
+        <section class="results-section" aria-labelledby="results-section-heading">
+            <h2 id="results-section-heading">Results</h2>
+            <div id="results-container">
+                <!-- Dynamically appended results will go here -->
+            </div>
+        </section>
+    </main>
+
+    <script>
+      function previewImage(event) {
+        const reader = new FileReader();
+        reader.onload = function() {
+          const output = document.getElementById('uploaded-image');
+          output.src = reader.result;
+        };
+        reader.readAsDataURL(event.target.files[0]);
+      }
+    </script>
+    <script src="{{ url_for('static', filename='scripts.js') }}"></script>
+</body>
+</html>

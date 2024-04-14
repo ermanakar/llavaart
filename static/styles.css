@@ -1,0 +1,154 @@
+body {
+    font-family: 'Open Sans', Arial, sans-serif;
+    margin: 0;
+    background-color: #121212;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+}
+
+main {
+    width: 100%;
+    max-width: 960px;
+    background: #1e1e1e;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+    padding: 20px;
+    border-radius: 8px;
+    margin: 20px;
+}
+
+label, p {
+    font-size: 1em;
+    color: #b0b0b0;
+}
+
+input, button, select {
+    padding: 12px 20px;
+    border-radius: 4px;
+    border: none;
+    margin-top: 10px;
+    background: #333333;
+    color: #ffffff;
+}
+
+button {
+    background-color: #0d6efd;
+    color: white;
+    font-weight: bold;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background-color 0.3s, transform 0.2s;
+    display: block;
+}
+
+button:hover {
+    background-color: #0b5ed7;
+    transform: translateY(-3px);
+}
+
+button:focus, input:focus, select:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px #80bdff;
+}
+
+.responsive-image {
+    max-width: 100%;
+    max-height: 70vh;
+    height: auto;
+    border-radius: 4px;
+}
+
+#submit-button.loading {
+    position: relative;
+}
+
+#submit-button.loading::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 20px;
+    height: 20px;
+    border: 2px solid #fff; /* Light color for the spinner border */
+    border-top-color: #0d6efd; /* Primary color for the spinner top border */
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (max-width: 480px) {
+    main {
+        margin-top: 10px;
+        padding: 10px;
+    }
+
+    button, input, select {
+        width: 100%;
+    }
+}
+
+#image-container {
+    text-align: center;
+    padding: 20px;
+    line-height: 0;
+}
+
+#image-container::after {
+    content: '';
+    display: inline-block;
+    height: 100%;
+    vertical-align: middle;
+}
+
+#uploaded-image {
+    vertical-align: middle;
+}
+
+.results-section, #progress-section {
+    display: block; /* or flex, depending on your design */
+}
+
+.progress-section {
+    margin-bottom: 20px;
+}
+
+progress {
+    width: 100%;
+    height: 20px;
+    border-radius: 4px;
+    color: #0d6efd; /* For browsers that support color styling */
+}
+
+progress[value]::-webkit-progress-bar {
+    background-color: #333333;
+    border-radius: 4px;
+}
+
+progress[value]::-webkit-progress-value {
+    background-color: #0d6efd;
+    border-radius: 4px;
+}
+
+progress[value]::-moz-progress-bar {
+    background-color: #0d6efd;
+    border-radius: 4px;
+}
+
+.iteration-placeholder {
+    margin-bottom: 20px;
+    padding: 10px;
+    background: #262626;
+    border-radius: 4px;
+    color: #b0b0b0;
+    text-align: center;
+}
+
+.error {
+    color: #ff3860; /* Adjust the color as per your design */
+}
