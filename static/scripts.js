@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', function() {
         event.preventDefault();
         const formData = new FormData(this);
 
-        updateStatusMessage('Uploading image and processing...');
+        updateStatusMessage('Uploading image and processing..');
         submitButton.classList.add('loading');
 
         try {
