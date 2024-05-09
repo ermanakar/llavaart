@@ -1,4 +1,4 @@
-#!/Users/ermanakar/Desktop/llava/app/venv/bin/python
+#!/Users/ermanakar/Desktop/llava/venv/bin/python
 # -*- coding: utf-8 -*-
 import re
 import sys
