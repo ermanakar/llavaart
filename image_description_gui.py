@@ -1,15 +1,17 @@
 from flask import Flask, render_template, request, jsonify
+from flask_socketio import SocketIO, emit
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 from airtable import Airtable
 import requests, os, base64, json, tempfile, logging, magic, uuid
 from datetime import datetime
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+socketio = SocketIO(app, cors_allowed_origins="http://localhost:3000")
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Configuration
 config = {
@@ -55,7 +57,7 @@ def get_image_description(image_path):
     with open(image_path, 'rb') as img:
         img_base64 = base64.b64encode(img.read()).decode('utf-8')
 
-    payload = {"model": config["OLLAMA_MODEL"], "prompt": "Describe this image with as much detail as possible, be specific in the style, emotion and activity in the image, imagine what is happening next in terms of causation", "images": [img_base64]}
+    payload = {"model": config["OLLAMA_MODEL"], "prompt": "Describe this image with as much detail as possible, be specific in the style, emotion and activity in the image", "images": [img_base64]}
     log_api_call(config["OLLAMA_API_ENDPOINT"], payload)
 
     try:
@@ -132,13 +134,42 @@ def save_image_from_url(image_url, tmpdirname):
         logging.error(f"Error downloading image from {image_url}: {e}")
         return None
 
+def process_iterations(current_image_path, iterations, tmpdirname, job_id):
+    results = []
+    for i in range(iterations):
+        description = get_image_description(current_image_path)
+        if not description:
+            logging.error(f"No description generated for iteration {i+1}")
+            continue
+
+        revised_prompt, image_url = generate_image(description)
+        if not revised_prompt or not image_url:
+            logging.error(f"Image generation failed for iteration {i+1}")
+            continue
+
+        results.append({"iteration": i + 1, "description": description, "image_url": image_url})
+        update_airtable(job_id, i + 1, description, image_url, revised_prompt)
+
+        # Emit update to connected clients
+        emit('update_image', {'iteration': i + 1, 'image_url': image_url, 'description': description}, broadcast=True)
+
+        if i < iterations - 1:
+            new_image_path = save_image_from_url(image_url, tmpdirname)
+            if new_image_path:
+                current_image_path = new_image_path
+            else:
+                logging.error(f"Failed to save new image for next iteration {i+2}")
+                break
+
+    return results
+
 @app.route('/', methods=['GET', 'POST'])
 def home():
     if request.method == 'POST':
         image_file = request.files.get('image')
         if image_file and allowed_file(image_file.filename):
             iterations = int(request.form.get('iterations', 1))
-            job_id = str(uuid.uuid4())  # Generate a unique job ID for this submission
+            job_id = generate_job_id()  # Use generate_job_id instead of uuid.uuid4() directly
             
             try:
                 with tempfile.TemporaryDirectory() as tmpdirname:
@@ -164,29 +195,5 @@ def home():
     # Render the initial HTML form for GET requests
     return render_template('index.html')
 
-def process_iterations(current_image_path, iterations, tmpdirname, job_id):
-    results = []
-    for i in range(iterations):
-        description = get_image_description(current_image_path)
-        if not description:
-            continue
-
-        image_url = generate_image(description)
-        if not image_url:
-            continue
-
-        results.append({"iteration": i + 1, "description": description, "image_url": image_url})
-        update_airtable(job_id, i + 1, description, image_url)
-
-        if i < iterations - 1:
-            new_image_path = save_image_from_url(image_url, tmpdirname)
-            if new_image_path:
-                current_image_path = new_image_path
-            else:
-                logging.error(f"Failed to save new image for next iteration {i+2}")
-                break
-
-    return results
-
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5001)
+    socketio.run(app, debug=True, host='0.0.0.0', port=5001)
