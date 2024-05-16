@@ -1,7 +1,7 @@
 import requests, json, logging
 from config import config
 from utils import log_api_call, log_api_response
-from socket_events import emit
+from socket_events import broadcast_image_update
 import os, uuid, base64, json, logging
 from airtable_integration import update_airtable
 
@@ -85,8 +85,8 @@ def process_iterations(current_image_path, iterations, tmpdirname, job_id):
         results.append({"iteration": i + 1, "description": description, "image_url": image_url})
         update_airtable(job_id, i + 1, description, image_url, revised_prompt)
 
-        # Emit update to connected clients
-        emit('update_image', {'iteration': i + 1, 'image_url': image_url, 'description': description}, broadcast=True)
+        # Correctly emit update to connected clients using socketio
+        broadcast_image_update(i + 1, image_url, description)
 
         if i < iterations - 1:
             new_image_path = save_image_from_url(image_url, tmpdirname)
