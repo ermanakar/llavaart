@@ -1,6 +1,7 @@
 # Environment and config files
 .env
 gpu-ollama-f3403e182055.json
+app.db
 
 # Virtual environment directories
 venv/
