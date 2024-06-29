@@ -5,3 +5,4 @@ python-dotenv==0.20.0
 python-magic==0.4.24
 airtable-python-wrapper==0.15.3
 Flask-SocketIO
+flask_sqlalchemy

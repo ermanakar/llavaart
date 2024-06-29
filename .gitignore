@@ -1,1 +1,25 @@
+# Environment and config files
 .env
+gpu-ollama-f3403e182055.json
+
+# Virtual environment directories
+venv/
+.venv/
+
+# Compiled Python files
+__pycache__/
+*.py[cod]
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+
+# Dependency directories
+node_modules/
+package-lock.json
+
+# IDE and editor-specific files
+.vscode/
+*.sublime-project
+*.sublime-workspace

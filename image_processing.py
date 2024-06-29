@@ -1,15 +1,25 @@
-import requests, json, logging
+import requests
+import json
+import logging
 from config import config
-from utils import log_api_call, log_api_response
+from utils import log_api_call, log_api_response, get_current_timestamp
 from socket_events import broadcast_image_update
-import os, uuid, base64, json, logging
-from airtable_integration import update_airtable
+import os
+import uuid
+import base64
+from google.cloud import storage
+from airtable_integration import update_airtable, update_sqlite
+from datetime import datetime
 
 def get_image_description(image_path):
     with open(image_path, 'rb') as img:
         img_base64 = base64.b64encode(img.read()).decode('utf-8')
 
-    payload = {"model": config["OLLAMA_MODEL"], "prompt": "Describe this image with as much detail as possible, be specific in the style, emotion and activity in the image", "images": [img_base64]}
+    payload = {
+        "model": config["OLLAMA_MODEL"],
+        "prompt": "Describe this image with as much detail as possible, be specific in the style, emotion and activity in the image",
+        "images": [img_base64]
+    }
     log_api_call(config["OLLAMA_API_ENDPOINT"], payload)
 
     try:
@@ -29,7 +39,9 @@ def get_image_description(image_path):
         return None
 
 def generate_image(description):
-    payload = {"prompt": description, "n": 1, "size": "1024x1024", "model": config["DALLE_MODEL"]}
+    # Statement for Ukiyo-e styleisation
+    ukiyoe_prompt = f"Create the following description of the image in Ukiyo-e style: {description}"
+    payload = {"prompt": ukiyoe_prompt, "n": 1, "size": "1024x1024", "model": config["DALLE_MODEL"]}
     headers = {'Authorization': f'Bearer {os.getenv("OPENAI_API_KEY")}'}
 
     log_api_call(config["DALLE_API_ENDPOINT"], payload)
@@ -40,33 +52,42 @@ def generate_image(description):
         response.raise_for_status()
         image_data = response.json()
 
-        # Extract the revised prompt and image URL from the response
         revised_prompt = image_data['data'][0].get('revised_prompt', '')
         image_url = image_data['data'][0].get('url', '')
 
-        # Return both the revised_prompt and the image_url
         return revised_prompt, image_url
     except requests.RequestException as e:
         logging.error(f"Error generating image: {e}")
-        # Return None for both revised_prompt and image_url in case of an error
         return None, None
 
-def save_image_from_url(image_url, tmpdirname):
+def save_image_from_url(image_url, local_path):
     logging.info(f"Attempting to download image from URL: {image_url}")
     try:
         response = requests.get(image_url, stream=True)
         if response.status_code == 200:
-            tmp_file_path = os.path.join(tmpdirname, uuid.uuid4().hex + ".jpg")
-            with open(tmp_file_path, 'wb') as tmp_file:
+            with open(local_path, 'wb') as img_file:
                 for chunk in response.iter_content(chunk_size=8192):
-                    tmp_file.write(chunk)
-            logging.info(f"Image successfully saved to {tmp_file_path}")
-            return tmp_file_path
+                    img_file.write(chunk)
+            logging.info(f"Image successfully saved to {local_path}")
+            return local_path
         else:
             logging.error(f"Failed to download image. HTTP status code: {response.status_code}")
             return None
     except requests.RequestException as e:
         logging.error(f"Error downloading image from {image_url}: {e}")
+        return None
+
+def upload_to_gcs(local_path, bucket_name, destination_blob_name):
+    try:
+        storage_client = storage.Client.from_service_account_json('/Users/ermanakar/Desktop/llava/gpu-ollama-f3403e182055.json')
+        bucket = storage_client.bucket(bucket_name)
+        blob = bucket.blob(destination_blob_name)
+        blob.upload_from_filename(local_path)
+        gcs_url = f"https://storage.googleapis.com/{bucket_name}/{destination_blob_name}"
+        logging.info(f"Image successfully uploaded to {gcs_url}")
+        return gcs_url
+    except Exception as e:
+        logging.error(f"Error uploading image to GCS: {e}")
         return None
 
 def process_iterations(current_image_path, iterations, tmpdirname, job_id):
@@ -82,18 +103,49 @@ def process_iterations(current_image_path, iterations, tmpdirname, job_id):
             logging.error(f"Image generation failed for iteration {i+1}")
             continue
 
-        results.append({"iteration": i + 1, "description": description, "image_url": image_url})
-        update_airtable(job_id, i + 1, description, image_url, revised_prompt)
+        local_image_path = os.path.join(tmpdirname, f"{uuid.uuid4().hex}.jpg")
+        if not save_image_from_url(image_url, local_image_path):
+            logging.error(f"Failed to save image for iteration {i+1}")
+            continue
 
-        # Correctly emit update to connected clients using socketio
-        broadcast_image_update(i + 1, image_url, description)
+        gcs_url = upload_to_gcs(local_image_path, 'llavaimages', f"images/{uuid.uuid4().hex}.jpg")
+        if not gcs_url:
+            logging.error(f"Failed to upload image to GCS for iteration {i+1}")
+            continue
+
+        timestamp = get_current_timestamp()  # Generate the timestamp once
+
+        result = {
+            "iteration_number": i + 1,
+            "description": description,
+            "image_url": gcs_url,
+            "revised_prompt": revised_prompt,
+            "timestamp": timestamp  # Add the timestamp to the result
+        }
+        
+        results.append(result)
+        
+        update_sqlite(
+            job_id=job_id,
+            iteration_number=result['iteration_number'],
+            timestamp=timestamp,  # Pass the timestamp here
+            description=result['description'],
+            image_url=result['image_url'],
+            revised_prompt=result['revised_prompt']
+        )
+
+        update_airtable(
+            job_id=job_id,
+            iteration_number=result['iteration_number'],
+            timestamp=timestamp,  # Pass the same timestamp here
+            description=result['description'],
+            image_url=result['image_url'],
+            revised_prompt=result['revised_prompt']
+        )
+
+        broadcast_image_update(i + 1, gcs_url, description)
 
         if i < iterations - 1:
-            new_image_path = save_image_from_url(image_url, tmpdirname)
-            if new_image_path:
-                current_image_path = new_image_path
-            else:
-                logging.error(f"Failed to save new image for next iteration {i+2}")
-                break
+            current_image_path = local_image_path
 
     return results
